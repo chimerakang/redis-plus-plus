@@ -5,6 +5,19 @@
 #include "image_helper/image_helper.h"
 #include "cxxopts.hpp"
 #include "image_helper/image_utils.h"
+
+#define ENABLE_ALPR 1
+#ifdef ENABLE_ALPR
+#include "ultimateALPR-SDK-API-PUBLIC.h"
+
+#if ULTALPR_SDK_OS_ANDROID 
+#	define ASSET_MGR_PARAM() __sdk_android_assetmgr, 
+#else
+#	define ASSET_MGR_PARAM() 
+#endif /* ULTALPR_SDK_OS_ANDROID */
+
+using namespace ultimateAlprSdk;
+#endif
 using namespace sw::redis::image_helper;
 
 
@@ -20,6 +33,99 @@ struct cameraParams {
     uint height;
     uint channels;
 };
+
+#ifdef ENABLE_ALPR
+// Configuration for ANPR deep learning engine
+static const char* __jsonConfig =
+"{"
+"\"debug_level\": \"info\","
+"\"debug_write_input_image_enabled\": false,"
+"\"debug_internal_data_path\": \".\","
+""
+"\"num_threads\": -1,"
+"\"gpgpu_enabled\": true,"
+""
+"\"klass_vcr_gamma\": 1.5,"
+""
+"\"detect_roi\": [0, 0, 0, 0],"
+"\"detect_minscore\": 0.1,"
+""
+"\"pyramidal_search_enabled\": true,"
+"\"pyramidal_search_sensitivity\": 0.28,"
+"\"pyramidal_search_minscore\": 0.3,"
+"\"pyramidal_search_min_image_size_inpixels\": 800,"
+""
+"\"recogn_minscore\": 0.3,"
+"\"recogn_score_type\": \"min\""
+"";
+
+/*
+* Parallel callback function used for notification. Not mandatory.
+* More info about parallel delivery: https://www.doubango.org/SDKs/anpr/docs/Parallel_versus_sequential_processing.html
+*/
+class MyUltAlprSdkParallelDeliveryCallback : public UltAlprSdkParallelDeliveryCallback {
+public:
+	MyUltAlprSdkParallelDeliveryCallback(const std::string& charset) : m_strCharset(charset) {}
+	virtual void onNewResult(const UltAlprSdkResult* result) const override {
+		static size_t numParallelDeliveryResults = 0;
+		ULTALPR_SDK_ASSERT(result != nullptr);
+		const std::string& json = result->json();
+		ULTALPR_SDK_PRINT_INFO("MyUltAlprSdkParallelDeliveryCallback::onNewResult(%d, %s, %zu): %s",
+			result->code(),
+			result->phrase(),
+			++numParallelDeliveryResults,
+			!json.empty() ? json.c_str() : "{}"
+		);
+	}
+private:
+	std::string m_strCharset;
+};
+
+
+void initUltimateEngine() {
+    	bool isParallelDeliveryEnabled = false; // Single image -> no need for parallel processing
+	bool isRectificationEnabled = false;
+	bool isOpenVinoEnabled = true;
+	bool isKlassLPCI_Enabled = false;
+	bool isKlassVCR_Enabled = false;
+	bool isKlassVMMR_Enabled = false;
+	std::string charset = "latin";
+	std::string openvinoDevice = "CPU";
+	std::string pathFileImage;
+
+	// Update JSON config
+	std::string jsonConfig = __jsonConfig;
+	jsonConfig += std::string(",\"recogn_rectify_enabled\": ") + (isRectificationEnabled ? "true" : "false");
+	jsonConfig += std::string(",\"openvino_enabled\": ") + (isOpenVinoEnabled ? "true" : "false");
+	if (!openvinoDevice.empty()) {
+		jsonConfig += std::string(",\"openvino_device\": \"") + openvinoDevice + std::string("\"");
+	}
+	jsonConfig += std::string(",\"klass_lpci_enabled\": ") + (isKlassLPCI_Enabled ? "true" : "false");
+	jsonConfig += std::string(",\"klass_vcr_enabled\": ") + (isKlassVCR_Enabled ? "true" : "false");
+	jsonConfig += std::string(",\"klass_vmmr_enabled\": ") + (isKlassVMMR_Enabled ? "true" : "false");
+	// if (!licenseTokenFile.empty()) {
+	// 	jsonConfig += std::string(",\"license_token_file\": \"") + licenseTokenFile + std::string("\"");
+	// }
+	// if (!licenseTokenData.empty()) {
+	// 	jsonConfig += std::string(",\"license_token_data\": \"") + licenseTokenData + std::string("\"");
+	// }
+	
+	jsonConfig += "}"; // end-of-config
+
+    UltAlprSdkResult result = UltAlprSdkEngine::init(jsonConfig.c_str());
+
+    MyUltAlprSdkParallelDeliveryCallback parallelDeliveryCallbackCallback(charset);
+	ULTALPR_SDK_ASSERT((result = UltAlprSdkEngine::init(
+		ASSET_MGR_PARAM()
+		jsonConfig.c_str(),
+		isParallelDeliveryEnabled ? &parallelDeliveryCallbackCallback : nullptr
+	)).isOK());
+
+    if(result.isOK()) {
+        std::cout << "UltralprSdkEngine init success" << std::endl;
+    }
+}
+#endif
 
 static int parseCommandLine(cxxopts::Options options, int argc, char** argv)
 {
@@ -104,6 +210,8 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
     uint width = cameraParams->width;
     uint height = cameraParams->height;
     uint channels = cameraParams->channels;
+    std::cout << "width:" << width << ",height:" << height << ",channels:" << channels << std::endl;
+
 
     redisReply *reply = (redisReply*) data;
     if  (reply == NULL)
@@ -112,6 +220,9 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
     }
     if (reply->type == REDIS_REPLY_ARRAY && reply->elements == 3)
     {
+        int length = reply->element[2]->len;
+        std::cout << "length:" << length << std::endl;
+
         cv::Mat displayFrame;
         Image* cFrame = RedisImageHelper::dataToImage(reply->element[2]->str, width, height, channels, reply->element[2]->len);
         if (cFrame == NULL) {
@@ -121,8 +232,31 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
             return;
         }
         cv::Mat frame = cv::Mat(cFrame->height(), cFrame->width(), CV_8UC3, (void*)cFrame->data());
-        cv::cvtColor(frame, displayFrame, CV_RGB2BGR);
-        cv::imshow("frame", displayFrame);
+        // cv::cvtColor(frame, displayFrame, CV_RGB2BGR);
+
+#ifdef ENABLE_ALPR
+        UltAlprSdkResult result;
+        // Recognize/Process
+        // We load the models when this function is called for the first time. This make the first inference slow.
+        // Use benchmark application to compute the average inference time: https://github.com/DoubangoTelecom/ultimateALPR-SDK/tree/master/samples/c%2B%2B/benchmark
+        ULTALPR_SDK_ASSERT((result = UltAlprSdkEngine::process(
+            ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of RGB-family. https://www.doubango.org/SDKs/anpr/docs/cpp-api.html#_CPPv4N15ultimateAlprSdk22ULTALPR_SDK_IMAGE_TYPEE
+            cFrame->data(),
+            cFrame->width(),
+            cFrame->height()
+        )).isOK());
+        ULTALPR_SDK_PRINT_INFO("Processing done.");
+
+        // Print latest result
+        if (result.json()) { // for parallel delivery the result will be printed by the callback function
+            const std::string& json_ = result.json();
+            if (!json_.empty()) {
+                ULTALPR_SDK_PRINT_INFO("result: %s", json_.c_str());
+            }
+        }
+#endif
+
+        cv::imshow("frame", frame);
         cv::waitKey(30);
         delete cFrame;
     }
@@ -158,6 +292,10 @@ int main(int argc, char** argv)
     contextData.height = clientSync.getInt(redisInputCameraParametersKey + ":height");
     contextData.channels = clientSync.getInt(redisInputCameraParametersKey + ":channels");
 
+#ifdef ENABLE_ALPR
+    initUltimateEngine();
+#endif
+
     if (STREAM_MODE) {
         RedisImageHelperAsync clientAsync(redisHost, redisPort, redisInputKey);
         if (!clientAsync.connect()) {
@@ -179,5 +317,9 @@ int main(int argc, char** argv)
 
         return EXIT_SUCCESS;
     }
+
+#ifdef ENABLE_ALPR
+    UltAlprSdkResult result = UltAlprSdkEngine::deInit();
+#endif
 }
 

@@ -63,6 +63,12 @@ if (NOT EV_FOUND)
     message(FATAL_ERROR "ev not found.")
 endif()    
 
+find_package(alpr REQUIRED)
+if (NOT ALPR_FOUND)
+    message(FATAL_ERROR "alpr not found.")
+endif()    
+
+
 if (REDIS_PLUS_PLUS_BUILD_STATIC)
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-static)
 else()
@@ -83,7 +89,7 @@ set(SERV_SOURCES
         RedisCameraServer.h)
 
 add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS})
-target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})
+target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS})
 
 add_executable (redis-camera-server ${SERV_SOURCES} ${HEADERS})
 target_link_libraries(redis-camera-server ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})
