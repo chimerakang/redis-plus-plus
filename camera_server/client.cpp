@@ -91,7 +91,7 @@ void initUltimateEngine() {
 	bool isKlassVMMR_Enabled = false;
 	std::string charset = "latin";
 	std::string openvinoDevice = "CPU";
-	std::string pathFileImage;
+	std::string assetsFolder = "./assets";
 
 	// Update JSON config
 	std::string jsonConfig = __jsonConfig;
@@ -103,6 +103,11 @@ void initUltimateEngine() {
 	jsonConfig += std::string(",\"klass_lpci_enabled\": ") + (isKlassLPCI_Enabled ? "true" : "false");
 	jsonConfig += std::string(",\"klass_vcr_enabled\": ") + (isKlassVCR_Enabled ? "true" : "false");
 	jsonConfig += std::string(",\"klass_vmmr_enabled\": ") + (isKlassVMMR_Enabled ? "true" : "false");
+	if (!assetsFolder.empty())
+    	{
+        	jsonConfig += std::string(",\"assets_folder\": \"") + assetsFolder + std::string("\"");
+    	}
+
 	// if (!licenseTokenFile.empty()) {
 	// 	jsonConfig += std::string(",\"license_token_file\": \"") + licenseTokenFile + std::string("\"");
 	// }
