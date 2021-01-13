@@ -57,10 +57,10 @@ The master branch is the stable branch, which passes all tests. The dev branch i
 ### Prerequisites
 The following needs to be installed before you can begin using RedisImageHelper:
 
-- Redis available as a packet sudo apt install redis-server or on arch yaourt -S redis-server
-- CMake available as a packet sudo apt install cmake or on arch yaourt -S cmake
-- Hiredis available as a packet sudo apt install hiredis or on arch yaourt -S hiredis
-- Libev available as a packet sudo apt install libev-dev or on arch yaourt -S libev
+- Redis available as a packet ```sudo apt install redis-server``` 
+- CMake available as a packet ```sudo apt install cmake```
+- Hiredis available as a packet ```sudo apt install hiredis```
+- Libev available as a packet ```sudo apt install libev-dev```
 
 ### Install redis-plus-plus
 
@@ -118,18 +118,6 @@ The following are some links on how to build CMake project with Visual Studio 20
 - [Open a project from a GitHub repo](https://docs.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo?view=vs-2019#open-a-project-from-a-github-repo)
 
 **NOTE**: IMHO, Visual Studio 2017's support for CMake project is not very mature, and I recommend you to build *hiredis* and *redis-plus-plus with Visual Studio 2019.
-
-##### Build hiredis
-
-First of all, you need to get the latest code of *hiredis* on master branch. Older version might not support Windows platform. *hiredis*' CMakeLists.txt uses `add_compile_definitions` method, which is only supported by cmake 3.12 or later. However, Visual Studio 2017's cmake version is older than that. So if you're using Visual Studio 2017, you need to comment the following line in the CMakeLists.txt file:
-
-```
-#IF(WIN32)
-#    ADD_COMPILE_DEFINITIONS(_CRT_SECURE_NO_WARNINGS WIN32_LEAN_AND_MEAN)
-#ENDIF()
-```
-
-You can use the **Open Folder** feature to open *hiredis* project, and build it with the instructions (links) mentioned above.
 
 ##### Build redis-plus-plus
 
