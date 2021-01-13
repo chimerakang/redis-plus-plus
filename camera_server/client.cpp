@@ -83,15 +83,17 @@ private:
 
 
 void initUltimateEngine() {
-    	bool isParallelDeliveryEnabled = false; // Single image -> no need for parallel processing
+    	bool isParallelDeliveryEnabled = true; // Single image -> no need for parallel processing
 	bool isRectificationEnabled = false;
-	bool isOpenVinoEnabled = true;
+	bool isOpenVinoEnabled = false;
 	bool isKlassLPCI_Enabled = false;
 	bool isKlassVCR_Enabled = false;
 	bool isKlassVMMR_Enabled = false;
 	std::string charset = "latin";
-	std::string openvinoDevice = "CPU";
+	std::string openvinoDevice = "GPU";
 	std::string assetsFolder = "./assets";
+    	std::string licenseTokenData = "ANI6+wXQBUVDUFFVdzBBR1VQRkMuBApERW4nS1FTRkgvKTEAGTwQeEtZREJUdkdVV3tGCWl3akZOXFg4G3Q2Ymk7cUFYWygGCBQqDgZVSUUzPW5LaUUxRlUpImJcRkFkMRscJyQ6RlhxRTxODAtKNTE3MGRlRDFdVGZqVDc1fScXNH5IX1AlCzkjKRdRNUVbXGYMLz0/JigQBg5gVmNiW3oxeUtxCFU6I1J5WwsyXiEyGi1SQz0+QxgpJzIqXyxXV35eaDBSeU59Sn4VPgEGP2N6LzoeVls=";
+
 
 	// Update JSON config
 	std::string jsonConfig = __jsonConfig;
@@ -111,9 +113,9 @@ void initUltimateEngine() {
 	// if (!licenseTokenFile.empty()) {
 	// 	jsonConfig += std::string(",\"license_token_file\": \"") + licenseTokenFile + std::string("\"");
 	// }
-	// if (!licenseTokenData.empty()) {
-	// 	jsonConfig += std::string(",\"license_token_data\": \"") + licenseTokenData + std::string("\"");
-	// }
+	if (!licenseTokenData.empty()) {
+	 	jsonConfig += std::string(",\"license_token_data\": \"") + licenseTokenData + std::string("\"");
+	}
 	
 	jsonConfig += "}"; // end-of-config
 
@@ -226,9 +228,8 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
     if (reply->type == REDIS_REPLY_ARRAY && reply->elements == 3)
     {
         int length = reply->element[2]->len;
-        std::cout << "length:" << length << std::endl;
 
-        cv::Mat displayFrame;
+        //cv::Mat displayFrame;
         Image* cFrame = RedisImageHelper::dataToImage(reply->element[2]->str, width, height, channels, reply->element[2]->len);
         if (cFrame == NULL) {
             if (VERBOSE) {
@@ -236,15 +237,18 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
             }
             return;
         }
-        cv::Mat frame = cv::Mat(cFrame->height(), cFrame->width(), CV_8UC3, (void*)cFrame->data());
-        // cv::cvtColor(frame, displayFrame, CV_RGB2BGR);
+        //cv::Mat frame = cv::Mat(cFrame->height(), cFrame->width(), CV_8UC3, (void*)cFrame->data());
+        //cv::cvtColor(frame, displayFrame, CV_RGB2BGR);
+	 std::cout << "width:" << cFrame->width() << ",height:" << cFrame->height() << ",length:" << length << std::endl;
+
 
 #ifdef ENABLE_ALPR
         UltAlprSdkResult result;
         // Recognize/Process
         // We load the models when this function is called for the first time. This make the first inference slow.
         // Use benchmark application to compute the average inference time: https://github.com/DoubangoTelecom/ultimateALPR-SDK/tree/master/samples/c%2B%2B/benchmark
-        ULTALPR_SDK_ASSERT((result = UltAlprSdkEngine::process(
+
+	ULTALPR_SDK_ASSERT((result = UltAlprSdkEngine::process(
             ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of RGB-family. https://www.doubango.org/SDKs/anpr/docs/cpp-api.html#_CPPv4N15ultimateAlprSdk22ULTALPR_SDK_IMAGE_TYPEE
             cFrame->data(),
             cFrame->width(),
@@ -259,10 +263,11 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
                 ULTALPR_SDK_PRINT_INFO("result: %s", json_.c_str());
             }
         }
+	
 #endif
 
-        cv::imshow("frame", frame);
-        cv::waitKey(30);
+        //cv::imshow("frame", displayFrame);
+        //cv::waitKey(30);
         delete cFrame;
     }
 }
@@ -308,6 +313,7 @@ int main(int argc, char** argv)
             return EXIT_FAILURE;
         }
         clientAsync.subscribe(redisInputKey, onImagePublished, static_cast<void*>(&contextData));
+        std::cout << "exit success" << std::endl;
         return EXIT_SUCCESS;
     }
     else {

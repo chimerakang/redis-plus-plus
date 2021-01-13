@@ -47,6 +47,25 @@ bool RedisCameraServer::start(int cameraId)
     return true;
 }
 
+bool RedisCameraServer::startByVideo(std::string videoUrl) 
+{
+    m_camera = new cv::VideoCapture(videoUrl);
+    if (!m_camera->isOpened())
+    {
+        std::cout << "Could not open video url: " << videoUrl << "." << std::endl;
+        return false;
+    }
+
+    if (!m_imageClient->connect())
+    {
+        std::cout << "Could not connect to the redis server." << std::endl;
+        return false;
+    }
+
+    return true;
+
+}
+
 void RedisCameraServer::setCameraParameters(std::string outputKey)
 {
     cv::Mat frame;

@@ -7,6 +7,7 @@ using namespace sw::redis::image_helper;
 bool VERBOSE = false;
 bool STREAM_MODE = true;
 bool TEGRA = false;
+bool VIDEO = true;
 std::string redisOutputKey = "custom:image";
 std::string redisCameraParametersOutputKey = "default:camera:parameters";
 std::string redisHost = "127.0.0.1";
@@ -126,11 +127,13 @@ int main(int argc, char** argv)
     std::string gstCommand = "nvcamerasrc ! video/x-raw(memory:NVMM), width=(int)640, height=(int)480, format=(string)I420, framerate=(fraction)5/1, queue-size=200, blockSize=16384, auto-exposure=1, scene-mode=1, flicker=0 ! nvvidconv flip-method=0 ! video/x-raw, format=(string)BGRx ! videoconvert ! video/x-raw, format=(string)BGR ! appsink";
 
     bool serverStarted;
-    if (TEGRA) {
-        serverStarted = server.start(gstCommand);
+    if (VIDEO) {
+        //serverStarted = server.start(gstCommand);
+	serverStarted = server.startByVideo("alpr.mp4");
     }
     else {
         serverStarted = server.start(cameraId);
+	//serverStarted = server.startByVideo("alpr.mp4");
     }
     if (!serverStarted)
     {
