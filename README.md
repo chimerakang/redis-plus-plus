@@ -77,6 +77,14 @@ make PREFIX=/non/default/path
 make PREFIX=/non/default/path install
 ```
 
+### Prerequisites
+The following needs to be installed before you can begin using RedisImageHelper:
+
+Redis available as a packet sudo apt install redis-server or on arch yaourt -S redis-server
+CMake available as a packet sudo apt install cmake or on arch yaourt -S cmake
+Hiredis available as a packet sudo apt install hiredis or on arch yaourt -S hiredis
+Libev available as a packet sudo apt install libev-dev or on arch yaourt -S libev
+
 ### Install redis-plus-plus
 
 *redis-plus-plus* is built with [CMAKE](https://cmake.org).
