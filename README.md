@@ -53,37 +53,14 @@ This is a C++ client for Redis. It's based on [hiredis](https://github.com/redis
 
 The master branch is the stable branch, which passes all tests. The dev branch is unstable. If you want to contribute, please create pull request on dev branch.
 
-## Installation
-
-### Install hiredis
-
-Since *redis-plus-plus* is based on *hiredis*, you should install *hiredis* first. The minimum version requirement for *hiredis* is **v0.12.1**. However, [the latest stable release](https://github.com/redis/hiredis/releases) of *hiredis* is always recommended.
-
-```
-git clone https://github.com/redis/hiredis.git
-
-cd hiredis
-
-make
-
-make install
-```
-
-By default, *hiredis* is installed at */usr/local*. If you want to install *hiredis* at non-default location, use the following commands to specify the installation path.
-
-```
-make PREFIX=/non/default/path
-
-make PREFIX=/non/default/path install
-```
 
 ### Prerequisites
 The following needs to be installed before you can begin using RedisImageHelper:
 
-Redis available as a packet sudo apt install redis-server or on arch yaourt -S redis-server
-CMake available as a packet sudo apt install cmake or on arch yaourt -S cmake
-Hiredis available as a packet sudo apt install hiredis or on arch yaourt -S hiredis
-Libev available as a packet sudo apt install libev-dev or on arch yaourt -S libev
+- Redis available as a packet sudo apt install redis-server or on arch yaourt -S redis-server
+- CMake available as a packet sudo apt install cmake or on arch yaourt -S cmake
+- Hiredis available as a packet sudo apt install hiredis or on arch yaourt -S hiredis
+- Libev available as a packet sudo apt install libev-dev or on arch yaourt -S libev
 
 ### Install redis-plus-plus
 
