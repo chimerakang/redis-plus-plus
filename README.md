@@ -53,29 +53,14 @@ This is a C++ client for Redis. It's based on [hiredis](https://github.com/redis
 
 The master branch is the stable branch, which passes all tests. The dev branch is unstable. If you want to contribute, please create pull request on dev branch.
 
-## Installation
 
-### Install hiredis
+### Prerequisites
+The following needs to be installed before you can begin using RedisImageHelper:
 
-Since *redis-plus-plus* is based on *hiredis*, you should install *hiredis* first. The minimum version requirement for *hiredis* is **v0.12.1**. However, [the latest stable release](https://github.com/redis/hiredis/releases) of *hiredis* is always recommended.
-
-```
-git clone https://github.com/redis/hiredis.git
-
-cd hiredis
-
-make
-
-make install
-```
-
-By default, *hiredis* is installed at */usr/local*. If you want to install *hiredis* at non-default location, use the following commands to specify the installation path.
-
-```
-make PREFIX=/non/default/path
-
-make PREFIX=/non/default/path install
-```
+- Redis available as a packet ```sudo apt install redis-server``` 
+- CMake available as a packet ```sudo apt install cmake```
+- Hiredis available as a packet ```sudo apt install hiredis```
+- Libev available as a packet ```sudo apt install libev-dev```
 
 ### Install redis-plus-plus
 
@@ -133,18 +118,6 @@ The following are some links on how to build CMake project with Visual Studio 20
 - [Open a project from a GitHub repo](https://docs.microsoft.com/en-us/visualstudio/get-started/tutorial-open-project-from-repo?view=vs-2019#open-a-project-from-a-github-repo)
 
 **NOTE**: IMHO, Visual Studio 2017's support for CMake project is not very mature, and I recommend you to build *hiredis* and *redis-plus-plus with Visual Studio 2019.
-
-##### Build hiredis
-
-First of all, you need to get the latest code of *hiredis* on master branch. Older version might not support Windows platform. *hiredis*' CMakeLists.txt uses `add_compile_definitions` method, which is only supported by cmake 3.12 or later. However, Visual Studio 2017's cmake version is older than that. So if you're using Visual Studio 2017, you need to comment the following line in the CMakeLists.txt file:
-
-```
-#IF(WIN32)
-#    ADD_COMPILE_DEFINITIONS(_CRT_SECURE_NO_WARNINGS WIN32_LEAN_AND_MEAN)
-#ENDIF()
-```
-
-You can use the **Open Folder** feature to open *hiredis* project, and build it with the instructions (links) mentioned above.
 
 ##### Build redis-plus-plus
 
