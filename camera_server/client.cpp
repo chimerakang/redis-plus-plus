@@ -5,8 +5,9 @@
 #include "image_helper/image_helper.h"
 #include "cxxopts.hpp"
 #include "image_helper/image_utils.h"
+#include "MJPEGWriter.h"
 
-#define ENABLE_ALPR 1
+///#define ENABLE_ALPR 1
 #ifdef ENABLE_ALPR
 #include "ultimateALPR-SDK-API-PUBLIC.h"
 
@@ -26,7 +27,9 @@ bool STREAM_MODE = true;
 std::string redisInputKey = "custom:image";
 std::string redisInputCameraParametersKey = "default:camera:parameters";
 std::string redisHost = "127.0.0.1";
+std::string rtspURL = "";
 int redisPort = 6379;
+int webPort = 10501;
 
 struct cameraParams {
     uint width;
@@ -148,16 +151,29 @@ static int parseCommandLine(cxxopts::Options options, int argc, char** argv)
     }
 
     if (result.count("i")) {
-        redisInputKey = result["i"].as<std::string>();
+        rtspURL = result["i"].as<std::string>();
         if (VERBOSE) {
-            std::cerr << "Input key was set to `" << redisInputKey << "`." << std::endl;
+            std::cerr << "Input rtsp url was set to `" << rtspURL << "`." << std::endl;
         }
     }
     else {
         if (VERBOSE) {
-            std::cerr << "No input key was specified. Input key was set to default (" << redisInputKey << ")." << std::endl;
+            std::cerr << "No input rtsp was specified. Input rtsp was set to default (" << rtspURL << ")." << std::endl;
         }
     }
+
+    if (result.count("p")) {
+        webPort = result["p"].as<int>();
+        if (VERBOSE) {
+            std::cerr << "Web port set to " << webPort << "." << std::endl;
+        }
+    }
+    else {
+        if (VERBOSE) {
+            std::cerr << "No web port specified. Web port was set to " << webPort << "." << std::endl;
+        }
+    }
+
 
     if (result.count("u")) {
         STREAM_MODE = false;
@@ -274,6 +290,7 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
 
 int main(int argc, char** argv)
 {
+
     cxxopts::Options options(argv[0], "Camera client sample program.");
     options.add_options()
             ("redis-host", "The host adress to which the redis client should try to connect", cxxopts::value<std::string>())
@@ -283,6 +300,7 @@ int main(int argc, char** argv)
             ("u, unique", "Activate unique mode. In unique mode the program will only read and output data one time.")
             ("v, verbose", "Enable verbose mode. This will print helpfull process informations on the standard error stream.")
             ("camera-parameters", "The redis input key where camera-parameters are going to arrive.", cxxopts::value<std::string>())
+            ("p, port", "Open web service port.", cxxopts::value<int>())
             ("h, help", "Print this help message.");
 
     int retCode = parseCommandLine(options, argc, argv);
@@ -302,9 +320,38 @@ int main(int argc, char** argv)
     contextData.height = clientSync.getInt(redisInputCameraParametersKey + ":height");
     contextData.channels = clientSync.getInt(redisInputCameraParametersKey + ":channels");
 
+
+
 #ifdef ENABLE_ALPR
     initUltimateEngine();
 #endif
+
+    MJPEGWriter web(webPort); //Creates the MJPEGWriter class to stream on the given port
+    // const std::string pipeline("rtspsrc location=rtsp://103.126.252.189:11011/stream0 latency=0 ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
+
+    ///cv::VideoCapture cap(pipeline, cv::CAP_GSTREAMER);
+    VideoCapture cap("rtsp://103.126.252.189:11011/stream0");
+    // VideoCapture cap(0);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, 640); 
+	cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+    bool ok = cap.isOpened(); //Open rtsp
+    if (!ok)
+    {
+        printf("no rtsp opened ;(.\n");
+        pthread_exit(NULL);
+    }
+    Mat frame;
+    cap >> frame;
+    web.write(frame); //Writes a frame (Mat class from OpenCV) to the server
+    frame.release();
+    web.start(); //Starts the HTTP Server on the selected port
+    while(cap.isOpened()){
+        cap >> frame; 
+        web.write(frame); 
+        frame.release();
+    }
+    web.stop(); //Stops the HTTP Server
+
 
     if (STREAM_MODE) {
         RedisImageHelperAsync clientAsync(redisHost, redisPort, redisInputKey);

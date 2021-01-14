@@ -80,7 +80,9 @@ set(GLOB HEADERS ../src/sw/redis++/image_helper/*.h)
 
 
 set(CLI_SOURCES
-        client.cpp)
+        client.cpp
+        MJPEGWriter.cpp
+        MJPEGWriter.h )
 
 set(SERV_SOURCES
         RedisCameraServer.cpp
