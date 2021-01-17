@@ -82,7 +82,11 @@ set(GLOB HEADERS ../src/sw/redis++/image_helper/*.h)
 set(CLI_SOURCES
         client.cpp
         MJPEGWriter.cpp
-        MJPEGWriter.h )
+        MJPEGWriter.h
+        json.hpp
+        concurrentqueue.h
+        SSocket.h
+        SSocket.cpp )
 
 set(SERV_SOURCES
         RedisCameraServer.cpp
@@ -91,7 +95,7 @@ set(SERV_SOURCES
         RedisCameraServer.h)
 
 add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS})
-target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS})
+target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} pthread curl)
 
 add_executable (redis-camera-server ${SERV_SOURCES} ${HEADERS})
 target_link_libraries(redis-camera-server ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})
