@@ -12,6 +12,8 @@ endif()
 
 #add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 
+message(STATUS "The CXX standard is c++${REDIS_PLUS_PLUS_CXX_STANDARD}")
+
 # opencv dependency
 find_package(OpenCV REQUIRED core opencv_imgcodecs opencv_highgui opencv_imgproc opencv_videoio)
 if (NOT OPENCV_FOUND)
@@ -73,6 +75,11 @@ if (NOT MYSQL_FOUND)
     message(FATAL_ERROR "mysql not found.")
 endif()
 
+option(USE_BOOST_ASIO "USE_BOOST_ASIO" ON)
+if(USE_BOOST_ASIO)
+    set(USE_BOOST_ASIO "1")
+endif()
+
 if (REDIS_PLUS_PLUS_BUILD_STATIC)
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-static)
 else()
@@ -87,18 +94,24 @@ set(CLI_SOURCES
         MJPEGWriter.cpp
         MJPEGWriter.h
         json.hpp
+	Config.hpp
+	Config.cpp
+	ConfigFile.hpp
+	ConfigFile.cpp
+	Logging.hpp
         concurrentqueue.h
         SSocket.h
-        SSocket.cpp )
+        SSocket.cpp
+	options.h
+	options.cpp )
 
 set(SERV_SOURCES
         RedisCameraServer.cpp
         server.cpp
-
         RedisCameraServer.h)
 
 add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS})
-target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} pthread {MYSQL_LIBS})
+target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} ${MYSQL_LIBS} curl pthread boost_system)
 
 add_executable (redis-camera-server ${SERV_SOURCES} ${HEADERS})
 target_link_libraries(redis-camera-server ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})

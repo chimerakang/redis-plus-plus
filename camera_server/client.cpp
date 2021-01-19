@@ -8,19 +8,26 @@
 #include <thread>
 #include "ultimateALPR-SDK-API-PUBLIC.h"
 #include "json.hpp"
+#include "Config.hpp"
 #include "MJPEGWriter.h"
 #include "concurrentqueue.h"
 #include "SSocket.h"
-#include "xorm/xorm.hpp"
-#include "xorm/dao.hpp"
-#include "xorm/dao.hpp"
-
+#include "macaddress.h"
 #include <stdarg.h>  // For va_start, etc.
 #include <memory>    // For std::unique_ptr
 #include <unistd.h>
 #include <sys/stat.h>
 
-///#define ENABLE_ALPR 1
+#define USE_BOOST_ASIO 1
+#include <amy/connector.hpp>
+#include <amy/placeholders.hpp>
+#include "options.h"
+
+///#define NO_STD_OPTIONAL
+///#include "mysql+++/mysql+++.h"
+
+
+#define ENABLE_ALPR 1
 #ifdef ENABLE_ALPR
 
 #if ULTALPR_SDK_OS_ANDROID
@@ -34,7 +41,8 @@ using namespace ultimateAlprSdk;
 using namespace sw::redis::image_helper;
 using json = nlohmann::json;
 using namespace moodycamel;
-using namespace xorm;
+using namespace RickyCorte;
+
 
 bool VERBOSE = false;
 bool STREAM_MODE = true;
@@ -45,11 +53,11 @@ std::string redisHost = "localhost";
 #else
 std::string redisHost = "bomding.com";
 #endif
+ConfigFile *cfg = NULL;
+
 int redisPort = 6018;
 int webPort1 = 10501;
 int webPort2 = 10502;
-
-ConcurrentQueue<cv::Mat> frameQueue;
 
 struct PlateInfo {
     cv::Mat frame;
@@ -66,8 +74,90 @@ struct cameraParams {
     uint channels;
 };
 
+/*
+struct parking_device {
+    string dev_id;
+    string mac_address;
+    bool online_status;
+    string ipaddr;
+    string device_key;
+    string token;
+};
+REFLECTION(parking_device, dev_id, mac_address, online_status, ipaddr, device_key, token)
+*/
+
+ConcurrentQueue<cv::Mat> frameQueue;
 ConcurrentQueue<PlateInfo> plateQueue;
 ConcurrentQueue<string> uploadQueue;
+
+void check_error(AMY_SYSTEM_NS::error_code const& ec) {
+    if (ec) {
+        throw AMY_SYSTEM_NS::system_error(ec);
+    }
+}
+
+void handle_connect(AMY_SYSTEM_NS::error_code const& ec,
+                    amy::connector& connector)
+{
+    check_error(ec);
+    std::cout << "Connected." << std::endl;
+}
+
+void init() {
+    cfg = new ConfigFile("cfg/config.json");
+
+    global_options opts;
+    opts.host = cfg->Get("db_host");
+    opts.port = std::stoi(cfg->Get("db_port"));
+    opts.user = cfg->Get("user_name");
+    opts.password = cfg->Get("pwd");
+    opts.schema = cfg->Get("db_name");
+    AMY_ASIO_NS::io_service io_service;
+    amy::connector connector(io_service);
+
+    connector.async_connect(opts.tcp_endpoint(),
+                            opts.auth_info(),
+                            opts.schema,
+                            amy::default_flags,
+                            std::bind(handle_connect,
+                            	amy::placeholders::error,
+                                std::ref(connector)));
+    try {
+	io_service.run();
+    } catch (AMY_SYSTEM_NS::system_error const& e) {
+        std::cerr << "Error:" << endl;
+    } catch (std::exception const& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
+    
+
+    /*
+    connect_options options;
+    options.server = cfg->Get("db_host");
+    options.port = std::stoi(cfg->Get("db_port") );
+    options.username = cfg->Get("user_name");
+    options.password = cfg->Get("pwd");
+    options.dbname = cfg->Get("db_name");
+
+    if (!dbConnection.open(options) ) {
+	cout << "Connection failed" << endl;
+    } else {
+	cout  << "db connection success" << endl;
+    }
+
+    dataBaseConfig config;
+    config.character_encoding = "utf8";
+    config.conn_number = 2;
+    config.dbname = cfg->Get("db_name");
+    config.host = cfg->Get("db_host");
+    config.port = std::stoi(cfg->Get("db_port"));
+    config.password = cfg->Get("pwd");
+    config.user =  cfg->Get("user_name");
+    dao_t<mysql>::init_conn_pool(config);
+    */
+
+
+}
 
 #ifdef ENABLE_ALPR
 // Configuration for ANPR deep learning engine
@@ -118,6 +208,82 @@ private:
     std::string m_strCharset;
 };
 
+void checkDeviceToken() {
+    if(cfg) {
+	// check device_key and mac exist ?
+	bool need_upload = false;
+	string device_key = cfg->Get("device_key");
+	string mac = cfg->Get("mac");
+	if( device_key.size() < 5 ) {
+	    string jsonConfig;
+	    string asstesFolder = "./assets";
+	    jsonConfig += std::string("\"assets_folder\": \"") + asstesFolder.c_str() + std::string("\"");
+	    jsonConfig = "{" + jsonConfig + "}";
+	    // Initialize the engine
+	    ULTALPR_SDK_ASSERT(UltAlprSdkEngine::init(jsonConfig.c_str()).isOK());
+
+	    // Request runtime license key
+	    const UltAlprSdkResult result = UltAlprSdkEngine::requestRuntimeLicenseKey(true);
+	    if (result.isOK()) {
+		cfg->Set("device_key", result.json() );
+		cout << "request key result:" << result.json() << endl;
+		need_upload = true;
+	    }
+	    else {
+		ULTALPR_SDK_PRINT_ERROR("\n\n*** Failed: code -> %d, phrase -> %s ***\n\n",
+			result.code(),
+			result.phrase()
+		);
+	    }
+	} else {
+	    cout << "device key: " << device_key << " is exist" << endl;
+	}
+
+	if( mac.size() < 5 ) {
+            macAddress mac_address;
+            mac_address.getMac("eth0");
+            cout << "mac address:" << mac_address.toString() << endl;
+	    cfg->Set("mac", mac_address.toString() );
+	    need_upload = true;
+	}
+
+	if( need_upload ) {
+	    string devID = cfg->Get("dev_id");
+	    string macAddress = cfg->Get("mac");
+	    string deviceKey = cfg->Get("device_key");
+	    /*
+	    try {
+		auto res = dbConnection.query("select dev_id, mac_address, device_key, token from parking_device where dev_id = %s", devID.c_str() );
+		if( !res.is_empty() ) {
+		    string mac_address, device_key, token;
+		    res.fetch(mac_address, device_key, token );
+		    cout << "mac:" << mac_address << ",device key:" << device_key << ",token:" << token << endl;
+		}
+
+	    } catch (mysql_exception exp) {
+		cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
+	    } catch (mysqlpp_exception exp) {
+		cout << "Query #" << " failed with error: " << exp.what() << endl;
+	    }
+	    */
+	
+	/*
+	    dao_t<mysql> dao{ "xorm" };
+	    string devID = cfg->Get("dev_id");
+	    auto r = dao.query<parking_device>("where dev_id=?", devID);
+	    if( !r.results.empty() ) {
+		auto &info = r.results[0];
+		info.mac_address = cfg->Get("mac");
+		info.device_key = cfg->Get("device_key");
+		cout << "info:" << info.mac_address << ",device key:" << info.device_key << endl;
+		dao.update(info);
+	    }
+	*/
+	}
+
+    }
+}
+
 void initUltimateEngine() {
     bool isParallelDeliveryEnabled = true; // Single image -> no need for parallel processing
 	bool isRectificationEnabled = false;
@@ -128,7 +294,8 @@ void initUltimateEngine() {
 	std::string charset = "latin";
 	std::string openvinoDevice = "GPU";
 	std::string assetsFolder = "./assets";
-    std::string licenseTokenData = "ANI6+wXQBUVDUFFVdzBBR1VQRkMuBApERW4nS1FTRkgvKTEAGTwQeEtZREJUdkdVV3tGCWl3akZOXFg4G3Q2Ymk7cUFYWygGCBQqDgZVSUUzPW5LaUUxRlUpImJcRkFkMRscJyQ6RlhxRTxODAtKNTE3MGRlRDFdVGZqVDc1fScXNH5IX1AlCzkjKRdRNUVbXGYMLz0/JigQBg5gVmNiW3oxeUtxCFU6I1J5WwsyXiEyGi1SQz0+QxgpJzIqXyxXV35eaDBSeU59Sn4VPgEGP2N6LzoeVls=";
+    //std::string licenseTokenData = "ANI6+wXQBUVDUFFVdzBBR1VQRkMuBApERW4nS1FTRkgvKTEAGTwQeEtZREJUdkdVV3tGCWl3akZOXFg4G3Q2Ymk7cUFYWygGCBQqDgZVSUUzPW5LaUUxRlUpImJcRkFkMRscJyQ6RlhxRTxODAtKNTE3MGRlRDFdVGZqVDc1fScXNH5IX1AlCzkjKRdRNUVbXGYMLz0/JigQBg5gVmNiW3oxeUtxCFU6I1J5WwsyXiEyGi1SQz0+QxgpJzIqXyxXV35eaDBSeU59Sn4VPgEGP2N6LzoeVls=";
+	std::string licenseTokenData = cfg->Get("token");
 
 	// Update JSON config
 	std::string jsonConfig = __jsonConfig;
@@ -233,16 +400,51 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
 
 void captureJob() {
     while(1) {
+	macAddress mac;
+	mac.getMac("eth0");
+	cout << "mac address:" << mac.toString() << endl;
+
+	/*
+	ConfigFile conf("cfg/mysql.json");
+	std::cout << "Get: " << conf.Get("pwd") << std::endl;
+
+	connect_options options; 
+	options.server = conf.Get("db_ip");
+	options.port = 6033;
+	options.username = conf.Get("user_name");
+	options.password = conf.Get("pwd");
+	options.dbname = conf.Get("db_name");
+
+	connection my;
+	if (!my.open(options) ) {
+		cout << "Connection failed" << endl;
+	}
+
+	try {
+
+		// Simple query and simple way to get back a single value:
+		auto row_count = my.query("select count(*) from jreader")
+							.get_value<int>();
+		cout << "Count: " << row_count << endl;
+
+	} catch (mysql_exception exp) {
+		cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
+	}
+	catch (mysqlpp_exception exp) {
+		cout << "Query #" << " failed with error: " << exp.what() << endl;
+	}
+
         dataBaseConfig config;
-        config.index_key = "xorm";
         config.character_encoding = "utf8";
         config.conn_number = 2;
         config.dbname = "ndocar";
-        config.host = "oculus.group:6033";
+        config.host = "notice.com.tw";
+	config.port = 6033;
         config.password = "qJlGgeg9uwAPPKlS";
         config.user = "facecam";
-        init_database_config(config);
         dao_t<mysql>::init_conn_pool(config);
+	*/
+
 
         cv::VideoCapture capture("rtsp://103.126.252.189:11011/stream0");
         // cv::VideoCapture capture("rtsp://114.34.177.189:11012/stream0");
@@ -446,12 +648,14 @@ static int parseCommandLine(cxxopts::Options options, int argc, char** argv)
 void AlprProcess()
 {
 #ifdef ENABLE_ALPR
+    checkDeviceToken();
     initUltimateEngine();
 #endif
 
     thread plateThread( handlePlateJob );
     thread uploadThread( uploadJob );
-    thread connectRedisThread( connectRedisJob );
+///    thread connectRedisThread( connectRedisJob );
+    thread captureThread( captureJob );
 
     cv::Mat frame;
 
@@ -561,6 +765,7 @@ int main(int argc, char** argv)
     {
         return EXIT_FAILURE;
     }
+    init();
 
     AlprProcess();
 

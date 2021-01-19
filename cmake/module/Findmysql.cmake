@@ -1,17 +1,3 @@
-# - Find CURLPP library
-# Once done this will define
-#
-#  CURLPP_FOUND - This defines if we found CURLPP
-#  CURLPP_INCLUDE_DIR - CURLPP include directory
-#  CURLPP_LIBS - CURLPP libraries
-#  CURLPP_DEFINITIONS - Compiler switches required for CURLPP
-
-
-# use pkg-config to get the directories and then use these values
-# in the FIND_PATH() and FIND_LIBRARY() calls
-#FIND_PACKAGE(PkgConfig)
-#PKG_SEARCH_MODULE(PC_LIBCURLPP libCURLPP)
-
 SET(MYSQL_DEFINITIONS ${PC_MYSQL_CFLAGS_OTHER})
 
 FIND_PATH(
