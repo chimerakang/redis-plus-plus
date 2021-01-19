@@ -11,6 +11,7 @@
 #include "MJPEGWriter.h"
 #include "concurrentqueue.h"
 #include "SSocket.h"
+#include "xorm/xorm.hpp"
 
 #include <stdarg.h>  // For va_start, etc.
 #include <memory>    // For std::unique_ptr
@@ -230,6 +231,16 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
 
 void captureJob() {
     while(1) {
+        dataBaseConfig config;
+        config.index_key = "xorm";
+        config.character_encoding = "utf8";
+        config.conn_number = 2;
+        config.dbname = "ndocar";
+        config.host = "oculus.group:6033";
+        config.password = "qJlGgeg9uwAPPKlS";
+        config.user = "facecam";
+        dao_t<mysql>::init_conn_pool(config);
+
         cv::VideoCapture capture("rtsp://103.126.252.189:11011/stream0");
         // cv::VideoCapture capture("rtsp://114.34.177.189:11012/stream0");
         //cv::VideoCapture capture("alpr.mp4");

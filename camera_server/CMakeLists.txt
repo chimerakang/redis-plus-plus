@@ -66,15 +66,19 @@ endif()
 find_package(alpr REQUIRED)
 if (NOT ALPR_FOUND)
     message(FATAL_ERROR "alpr not found.")
-endif()    
+endif()
 
+find_package(mysql REQUIRED)
+if (NOT MYSQL_FOUND)
+    message(FATAL_ERROR "mysql not found.")
+endif()
+include_directories(${MYSQL_INCLUDE_DIR})
 
 if (REDIS_PLUS_PLUS_BUILD_STATIC)
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-static)
 else()
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-shared)
 endif()
-
 
 set(GLOB HEADERS ../src/sw/redis++/image_helper/*.h)	
 
