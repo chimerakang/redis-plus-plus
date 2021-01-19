@@ -12,6 +12,8 @@
 #include "concurrentqueue.h"
 #include "SSocket.h"
 #include "xorm/xorm.hpp"
+#include "xorm/dao.hpp"
+#include "xorm/dao.hpp"
 
 #include <stdarg.h>  // For va_start, etc.
 #include <memory>    // For std::unique_ptr
@@ -32,7 +34,7 @@ using namespace ultimateAlprSdk;
 using namespace sw::redis::image_helper;
 using json = nlohmann::json;
 using namespace moodycamel;
-
+using namespace xorm;
 
 bool VERBOSE = false;
 bool STREAM_MODE = true;
@@ -239,6 +241,7 @@ void captureJob() {
         config.host = "oculus.group:6033";
         config.password = "qJlGgeg9uwAPPKlS";
         config.user = "facecam";
+        init_database_config(config);
         dao_t<mysql>::init_conn_pool(config);
 
         cv::VideoCapture capture("rtsp://103.126.252.189:11011/stream0");
