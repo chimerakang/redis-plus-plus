@@ -107,14 +107,23 @@ void init() {
     cfg = new ConfigFile("cfg/config.json");
 
     global_options opts;
+/*
     opts.host = cfg->Get("db_host");
-    opts.port = std::stoi(cfg->Get("db_port"));
+    opts.port = 6033;
     opts.user = cfg->Get("user_name");
     opts.password = cfg->Get("pwd");
     opts.schema = cfg->Get("db_name");
+*/
     AMY_ASIO_NS::io_service io_service;
     amy::connector connector(io_service);
+    connector.connect(opts.tcp_endpoint(),
+                      opts.auth_info(),
+                      opts.schema,
+                      amy::default_flags);
 
+    std::cout << "Connected." << std::endl;
+
+/*
     connector.async_connect(opts.tcp_endpoint(),
                             opts.auth_info(),
                             opts.schema,
@@ -129,7 +138,7 @@ void init() {
     } catch (std::exception const& e) {
         std::cerr << "Exception: " << e.what() << std::endl;
     }
-    
+  */  
 
     /*
     connect_options options;
