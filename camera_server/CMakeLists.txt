@@ -13,7 +13,7 @@ endif()
 message(STATUS "CAMERA_SERVER_CXX_STANDARD CXX standard is c++${CAMERA_SERVER_CXX_STANDARD}")
 
 if (NOT WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CAMERA_SERVER_CXX_STANDARD} -Wc++17-extensions")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CAMERA_SERVER_CXX_STANDARD} ")
 endif()
 
 
@@ -86,8 +86,6 @@ if (NOT MYSQL_FOUND)
     message(FATAL_ERROR "mysql not found.")
 endif()
 
-find_package(sqlpp11 REQUIRED)
-
 
 if (REDIS_PLUS_PLUS_BUILD_STATIC)
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-static)
@@ -128,8 +126,8 @@ set(SERV_SOURCES
         server.cpp
         RedisCameraServer.h)
 
-add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS} ${SQLPP11_INCLUDE_DIR})
-target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} ${MYSQL_LIBS} ${SQLPP11_LIBS} curl pthread  )
+add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS} )
+target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} ${MYSQL_LIBS} curl pthread  )
 
 add_executable (redis-camera-server ${SERV_SOURCES} ${HEADERS})
 target_link_libraries(redis-camera-server ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})

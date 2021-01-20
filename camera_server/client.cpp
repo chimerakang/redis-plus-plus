@@ -11,7 +11,7 @@
 #include "Config.hpp"
 #include "MJPEGWriter.h"
 #include "concurrentqueue.h"
-#include "SSocket.h"
+#include "cxxurl/cxxurl_all.h"
 #include "macaddress.h"
 #include <stdarg.h>  // For va_start, etc.
 #include <memory>    // For std::unique_ptr
@@ -25,7 +25,7 @@
 #include "yazi-mysql/mysql/Row.h"
 using namespace yazi::mysql;
 
-// #define ENABLE_ALPR 1
+#define ENABLE_ALPR 1
 #ifdef ENABLE_ALPR
 
 #if ULTALPR_SDK_OS_ANDROID
@@ -41,6 +41,7 @@ using json = nlohmann::json;
 using namespace moodycamel;
 using namespace RickyCorte;
 using namespace daotk::mysql;
+using namespace CXXUrl;
 
 bool VERBOSE = false;
 bool STREAM_MODE = true;
@@ -65,6 +66,14 @@ struct PlateInfo {
     int px1, px2, py1, py2;
     float car_confidence;
     int cx1, cx2, cy1, cy2;
+    string rdno;
+};
+
+struct PostInfo {
+    string rdno;
+    string carno;
+    string filename;
+    string sfilename;
 };
 
 struct cameraParams {
@@ -87,23 +96,11 @@ struct parking_device {
     }
 };
 
-ConcurrentQueue<cv::Mat> frameQueue;
+ConcurrentQueue<cv::Mat> frameQueue1;
+ConcurrentQueue<cv::Mat> frameQueue2;
 ConcurrentQueue<PlateInfo> plateQueue;
 ConcurrentQueue<string> uploadQueue;
-/*
-void check_error(AMY_SYSTEM_NS::error_code const& ec) {
-    if (ec) {
-        throw AMY_SYSTEM_NS::system_error(ec);
-    }
-}
-
-void handle_connect(AMY_SYSTEM_NS::error_code const& ec,
-                    amy::connector& connector)
-{
-    check_error(ec);
-    std::cout << "Connected." << std::endl;
-}
-*/
+ConcurrentQueue<PostInfo> postQueue;
 
 std::string string_format(const std::string fmt_str, ...) {
     int final_n, n = ((int)fmt_str.size()) * 2; /* Reserve two times as much as the length of the fmt_str */
@@ -128,8 +125,8 @@ void init() {
     cfg = new ConfigFile("cfg/config.json");
 
     string devID = cfg->Get("dev_id");
-    string macAddress = cfg->Get("mac");
     string deviceKey = cfg->Get("device_key");
+
 
     Database db;
     if (db.connect(cfg->Get("db_host"), std::stoi(cfg->Get("db_port")), cfg->Get("user_name"), cfg->Get("pwd"), cfg->Get("db_name")))
@@ -142,8 +139,11 @@ void init() {
     // select one record
     Row row;
     row.clear();
-    row["mac_address"] = 30;
-    row["device_key"] = "ping";
+    macAddress mac_address;
+    mac_address.getMac("eth0");
+    cout << "mac address:" << mac_address.toString() << endl;
+    cfg->Set("mac", mac_address.toString() );
+    row["mac_address"] = mac_address.toString();
     table.from("parking_device").where("dev_id", devID).update(row);
     // if (row.empty())
     // {
@@ -170,42 +170,53 @@ void init() {
 	    cout  << "db connection success" << endl;
 
         try {
-            // string queryString = string_format("select dev_id, mac_address, device_key, token from parking_device where dev_id = `%s`", devID.c_str());
-            string queryString = string_format("select dev_id, mac_address, device_key, token from `parking_device` WHERE `dev_id`='jetson01' LIMIT 0,1 ");
+            string queryString = string_format("select dev_id, mac_address, device_key, token from `parking_device` where `dev_id` = '%s' limit 0,1", devID.c_str());
+            //string queryString = string_format("select dev_id, mac_address, device_key, token from `parking_device` WHERE `dev_id`='jetson01' LIMIT 0,1 ");
             cout << "query string:" << queryString << endl;
             DBConnection.query( queryString )
                 .each([](string devid, string mac, string key, string token ) {
                     cout << "mac:" << mac << ",device key:" << key << ",token:" << token << endl;
-                
+		    if( token.size() > 100 ) {
+			cout << "receive token:" << token << endl;
+			cfg->Set("token", token);
+		    }
                     return true;
-                // string mac_address, device_key, token;
-                // res.fetch(mac_address, device_key, token );
-                // cout << "mac:" << mac_address << ",device key:" << device_key << ",token:" << token << endl;
             });
-
-            DBConnection.exec("update `parking_device` set `mac_address` = `00:11:22:33:44:55`");
-
-	    } catch (mysql_exception exp) {
-    		cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
-	    } catch (mysqlpp_exception exp) {
-	    	cout << "Query #" << " failed with error: " << exp.what() << endl;
+	    
+	    string jreaderQuery = string_format("select dev_id, rdno, spaceno, rtspip, width, height from `jreader` where `dev_id` = '%s'", devID.c_str() );
+            cout << "query string:" << jreaderQuery << endl;
+	    int index = 0;
+	    string dev_id, spaceno, rtspip, rdno;
+	    int width, height;
+            auto res = DBConnection.query( jreaderQuery );
+	    while( !res.eof() ) {
+		res.fetch(dev_id, rdno, spaceno, rtspip, width, height );
+                cout << "dev id:" << dev_id << ",rdno:" << rdno << ",space no:" << spaceno << ",rtspip:" << rtspip << ",width:" << width << ",height:" << height << endl;
+                if( index == 0 ) {
+		    cfg->Set("rtsp_host1", rtspip );
+		    cfg->Set("rdno1", rdno );
+		} else {
+		    cfg->Set("rtsp_host2", rtspip );
+		    cfg->Set("rdno2", rdno );
+		}
+                cfg->Set("mjpeg_width", std::to_string(width) );
+		cfg->Set("mjpeg_height", std::to_string(height) );
+		cfg->Set("spaceno", spaceno );
+		index++;
+          	res.next();
+            }
+	    if( index == 0 ) {
+		cout << "no any setting for this device, quit it" << endl;
+		exit(1);
 	    }
 
+	} catch (mysql_exception exp) {
+    	    cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
+	} catch (mysqlpp_exception exp) {
+	    cout << "Query #" << " failed with error: " << exp.what() << endl;
+	}
+
     }
-    /*
-
-    dataBaseConfig config;
-    config.character_encoding = "utf8";
-    config.conn_number = 2;
-    config.dbname = cfg->Get("db_name");
-    config.host = cfg->Get("db_host");
-    config.port = std::stoi(cfg->Get("db_port"));
-    config.password = cfg->Get("pwd");
-    config.user =  cfg->Get("user_name");
-    dao_t<mysql>::init_conn_pool(config);
-    */
-
-
 }
 
 #ifdef ENABLE_ALPR
@@ -330,19 +341,6 @@ void checkDeviceToken() {
 		cout << "Query #" << " failed with error: " << exp.what() << endl;
 	    }
 	    */
-	
-	/*
-	    dao_t<mysql> dao{ "xorm" };
-	    string devID = cfg->Get("dev_id");
-	    auto r = dao.query<parking_device>("where dev_id=?", devID);
-	    if( !r.results.empty() ) {
-		auto &info = r.results[0];
-		info.mac_address = cfg->Get("mac");
-		info.device_key = cfg->Get("device_key");
-		cout << "info:" << info.mac_address << ",device key:" << info.device_key << endl;
-		dao.update(info);
-	    }
-	*/
 	}
 
     }
@@ -358,7 +356,6 @@ void initUltimateEngine() {
 	std::string charset = "latin";
 	std::string openvinoDevice = "GPU";
 	std::string assetsFolder = "./assets";
-    //std::string licenseTokenData = "ANI6+wXQBUVDUFFVdzBBR1VQRkMuBApERW4nS1FTRkgvKTEAGTwQeEtZREJUdkdVV3tGCWl3akZOXFg4G3Q2Ymk7cUFYWygGCBQqDgZVSUUzPW5LaUUxRlUpImJcRkFkMRscJyQ6RlhxRTxODAtKNTE3MGRlRDFdVGZqVDc1fScXNH5IX1AlCzkjKRdRNUVbXGYMLz0/JigQBg5gVmNiW3oxeUtxCFU6I1J5WwsyXiEyGi1SQz0+QxgpJzIqXyxXV35eaDBSeU59Sn4VPgEGP2N6LzoeVls=";
 	std::string licenseTokenData = cfg->Get("token");
 
 	// Update JSON config
@@ -436,7 +433,7 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
         //cv::cvtColor(frame, displayFrame, CV_RGB2BGR);
         if( frame.ptr() ) {
             std::cout << "width:" << frame.size().width << ",height:" << frame.size().height << ",length:" << length << std::endl;
-            frameQueue.enqueue(frame);
+            frameQueue1.enqueue(frame);
         }
 
         //cv::imshow("frame", displayFrame);
@@ -445,69 +442,28 @@ void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
     }
 }
 
-void captureJob() {
+void captureJob(int index) {
     while(1) {
-	macAddress mac;
-	mac.getMac("eth0");
-	cout << "mac address:" << mac.toString() << endl;
-
-	/*
-	ConfigFile conf("cfg/mysql.json");
-	std::cout << "Get: " << conf.Get("pwd") << std::endl;
-
-	connect_options options; 
-	options.server = conf.Get("db_ip");
-	options.port = 6033;
-	options.username = conf.Get("user_name");
-	options.password = conf.Get("pwd");
-	options.dbname = conf.Get("db_name");
-
-	connection my;
-	if (!my.open(options) ) {
-		cout << "Connection failed" << endl;
+	string rtsp;
+	if( index == 1 ) {
+	    rtsp = cfg->Get("rtsp_host1");
+	} else {
+	    rtsp = cfg->Get("rtsp_host2");
 	}
+	int width = std::stoi(cfg->Get("mjpeg_width"));
+	int height = std::stoi(cfg->Get("mjpeg_height"));
 
-	try {
-
-		// Simple query and simple way to get back a single value:
-		auto row_count = my.query("select count(*) from jreader")
-							.get_value<int>();
-		cout << "Count: " << row_count << endl;
-
-	} catch (mysql_exception exp) {
-		cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
-	}
-	catch (mysqlpp_exception exp) {
-		cout << "Query #" << " failed with error: " << exp.what() << endl;
-	}
-
-        dataBaseConfig config;
-        config.character_encoding = "utf8";
-        config.conn_number = 2;
-        config.dbname = "ndocar";
-        config.host = "notice.com.tw";
-	config.port = 6033;
-        config.password = "qJlGgeg9uwAPPKlS";
-        config.user = "facecam";
-        dao_t<mysql>::init_conn_pool(config);
-	*/
-
-
-        cv::VideoCapture capture("rtsp://103.126.252.189:11011/stream0");
-        // cv::VideoCapture capture("rtsp://114.34.177.189:11012/stream0");
-        //cv::VideoCapture capture("alpr.mp4");
-        capture.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-        capture.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+        cv::VideoCapture capture(rtsp);
 
         cv::Mat frame;
-        cout << "capture rtsp://103.126... capture stream into queue first" << endl;
+        cout << "capture " << rtsp << " tream push into queue first" << endl;
         int count = 0;
 
         while (1) {        
             if (!capture.read(frame)) {
             	std::cout << "capture error, restart" << std::endl;
             	break;
-	        } 
+	    } 
             // if(++count % 1000 == 0 ) {
             //     string filename = string_format("test_%d.jpg", count);
             //     cv::imwrite( filename, frame );
@@ -517,13 +473,20 @@ void captureJob() {
             //         // cout << "post " << filename << endl;
             //     }
             // }
-	        frameQueue.enqueue(frame);
+
+	    if( index == 1 ) {
+	    	frameQueue1.enqueue(frame);
+	    } else {
+		frameQueue2.enqueue(frame);
+	    }
         }
     }
 }
 
 void handlePlateJob() {
     PlateInfo info;
+    string post_url = cfg->Get("post_url");
+    string image_server = cfg->Get("image_server");
 
     while(1) {
         if( plateQueue.try_dequeue(info) ) {
@@ -536,6 +499,7 @@ void handlePlateJob() {
             // cout << "cx1:"<< info.cx1 << ",cx2:" << info.cx2 << ",cy1:" << info.cy1 << ",cy2:" << info.cy2 << endl;
             int width = info.cx2-info.cx1;
             int height = info.cy2 - info.cy1;
+	    string carimg_url, plateimg_url;
             if( width > 0 && height > 0 ) {
                 cv::Rect car_region(info.cx1, info.cy1, width, height );
                 cv::Mat carImg = info.frame(car_region);
@@ -543,6 +507,7 @@ void handlePlateJob() {
                 cv::imwrite( filename, carImg );
                 if( carImg.ptr() && carImg.size().width > 0 && carImg.size().height > 0 ) {
                     uploadQueue.enqueue(filename);
+		    carimg_url = string_format("%s/%s", image_server.c_str(), filename.c_str() );
                 }
             }
 
@@ -556,14 +521,23 @@ void handlePlateJob() {
                 cv::imwrite(filename, plateImg);
                 if( plateImg.ptr() && plateImg.size().width > 0 && plateImg.size().height > 0 ) {
                     uploadQueue.enqueue(filename);
+		    plateimg_url = string_format("%s/%s", image_server.c_str(), filename.c_str() );
                 }
             }
+
+	    PostInfo postInfo;
+	    postInfo.rdno = info.rdno;
+	    postInfo.carno = info.plate;
+	    postInfo.filename = carimg_url;
+	    postInfo.sfilename = plateimg_url;
+	    postQueue.enqueue( postInfo );
         }
     }
 }
 
 void uploadJob() {
-    SSocket sock = SSocket();
+    //SSocket sock = SSocket();
+    string post_url = cfg->Get("post_url");
     while(1) {
         string filename;
         if( uploadQueue.try_dequeue(filename) ) { 
@@ -573,10 +547,45 @@ void uploadJob() {
                 //sock.postUpload("http://notice.com.tw:2077/upload", filename, "file");
                 string command = string_format("curl -X POST http://notice.com.tw:2077/upload -F \"file=@%s\"", filename.c_str());
                 system(command.c_str());
-                cout << "command: " << command << endl;            }
+                cout << "command: " << command << endl;
+		string image_url = string_format("%s/%s", post_url.c_str(), filename.c_str() );
+		cout << "image url:" << image_url << endl;
+	    }
         }
 
-        usleep(10000);
+        usleep(50000);
+    }
+}
+
+void postJob() {
+    string post_url = cfg->Get("post_url");
+    PostInfo postInfo;
+    while(1) {
+        if( postQueue.try_dequeue(postInfo) ) { 
+       	    ostringstream contentOutput;
+    	    // simple form, you can only set key-value (x-www-form-urlencoded)
+    	    SimpleForm form;
+    	    form.add("rdno", postInfo.rdno);
+    	    form.add("carno",  postInfo.carno);
+	    form.add("filename", postInfo.filename);
+	    form.add("sfilename", postInfo.sfilename);
+
+    	    Request request = RequestBuilder()
+            	.url(post_url)
+            	.followLocation(true)
+            	.requestBody(&form)
+            	.contentOutput(&contentOutput)
+            	.build();
+    	    auto const res = request.post();
+
+    	    cout << "------------ Code ------------" << endl
+         	<< res.getCode() << endl
+         	<< "----------- Content ----------" << endl
+         	<< contentOutput.str() << endl
+         	<< flush;
+        }
+
+        usleep(50000);
     }
 }
 
@@ -702,16 +711,24 @@ void AlprProcess()
     thread plateThread( handlePlateJob );
     thread uploadThread( uploadJob );
 ///    thread connectRedisThread( connectRedisJob );
-    thread captureThread( captureJob );
+    thread captureThread1( captureJob, 1 );
+    thread captureThread2( captureJob, 2 );
+    thread postThread( postJob );
 
     cv::Mat frame;
-
-    MJPEGWriter web(webPort1);
-    web.start();
+    string spaceno = cfg->Get("spaceno");
+    string rdno1 = cfg->Get("rdno1");
+    string rdno2 = cfg->Get("rdno2");
+    int port1 = std::stoi(cfg->Get("mjpeg_port1"));
+    int port2 = std::stoi(cfg->Get("mjpeg_port2"));
+    MJPEGWriter web1(port1);
+    MJPEGWriter web2(port2);
+    web1.start();
+    web2.start();
 
     while (1)
     {
-        if( frameQueue.try_dequeue(frame) ) { 
+        if( frameQueue1.try_dequeue(frame) ) { 
 #ifdef ENABLE_ALPR
             UltAlprSdkResult result = UltAlprSdkEngine::process(
                 ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of RGB-family. https://www.doubango.org/SDKs/anpr/docs/cpp-api.html#_CPPv4N15ultimateAlprSdk22ULTALPR_SDK_IMAGE_TYPEE
@@ -773,6 +790,7 @@ void AlprProcess()
                                     info.py1 = py1;
                                     info.py2 = py2;
                                     info.plate = plate;
+				    info.rdno = rdno1;
                                 }
                             }
                         }
@@ -781,8 +799,83 @@ void AlprProcess()
                 }
             }
 #endif
-            web.write(frame);
+            web1.write(frame);
         }
+
+
+        if( frameQueue2.try_dequeue(frame) ) { 
+#ifdef ENABLE_ALPR
+            UltAlprSdkResult result = UltAlprSdkEngine::process(
+                ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of R$
+                frame.ptr(),
+                frame.size().width,
+                frame.size().height);
+
+            if (result.isOK() && result.json()) {
+                const std::string &json_ = result.json();
+                if (!json_.empty()) {
+                    cout << "UltAlprSdkEngine result: " << json_.c_str() << ",found " << result.numCars() << " cars" << endl;
+                    if( result.numCars() > 0 && result.numPlates() > 0) {
+                        PlateInfo info;
+                        json j = json::parse(json_);
+                        if( j.contains("plates") ) {
+                            json plates = j["plates"];
+                            if( plates.is_array() ) {
+                                for( int i=0; i<plates.size(); i++) {
+                                    if( plates[i].contains("car") ) {
+                                        json car = plates[i]["car"];
+                                        json box = car["warpedBox"];
+                                        float confidence = car["confidence"].get<float>();
+                                        int cx1 = int(box[0].get<float>());
+                                        int cy1 = int(box[1].get<float>());
+                                        int cx2 = int(box[4].get<float>());
+                                        int cy2 = int(box[5].get<float>());
+                                       	cout << "cx1:" << cx1 << ",cx2:" << cx2 << ",cy1:" << cy1 << ",cy2:" << cy2 << ",confidence:" << confidence << endl;
+
+                                        cv::rectangle(frame, cv::Point(cx1, cy1), cv::Point(cx2, cy2), cv::Scalar(0, 255, 255), 2);
+                                        info.car_confidence = confidence;
+                                        info.cx1 = cx1;
+                                        info.cx2 = cx2;
+                                        info.cy1 = cy1;
+                                        info.cy2 = cy2;
+                                        info.frame = frame;
+                                        info.plate = "";
+                                    }
+
+                                    std::string plate = plates[i]["text"].get<std::string>();
+                                    json confidences = plates[i]["confidences"];
+                                    float confidence0,confidence1;
+                                    if( confidences.is_array() ) {
+                                        confidence0 = confidences[0].get<float>();
+                                        confidence1 = confidences[1].get<float>();
+                                    }
+                                    std::cout << "plate:" << plate << ",confidences:" << confidences << std::endl;
+                                    json box = plates[i]["warpedBox"];
+                                    int px1 = int(box[0].get<float>());
+                                    int py1 = int(box[1].get<float>());
+                                    int px2 = int(box[4].get<float>());
+                                    int py2 = int(box[5].get<float>());
+
+                                    cv::rectangle(frame, cv::Point(px1, py1), cv::Point(px2, py2),  cv::Scalar(255, 255, 0), 2 );
+                                    info.plate_confidence0 = confidence0;
+                                    info.plate_confidence1 = confidence1;
+                                    info.px1 = px1;
+                                    info.px2 = px2;
+                                    info.py1 = py1;
+                                    info.py2 = py2;
+                                    info.plate = plate;
+                                    info.rdno = rdno2;
+                                }
+                            }
+                        }
+			plateQueue.enqueue(info);
+		    }
+		}
+	    }
+#endif
+	    web2.write(frame);
+	}
+
     }
 
 #ifdef ENABLE_ALPR

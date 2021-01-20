@@ -4,18 +4,19 @@
     "pwd": "qJlGgeg9uwAPPKlS",
     "db_name": "ndocar",
     "db_port": "6033",
-    "timeout": 2,
-    "db_conn_num": 4,
+    "post_url": "http://notice.com.tw:8000/admin/getcaridentify.php",
+    "image_server": "http://notice.com.tw:2077/file/",
     "rtsp_host1": "",
     "rtsp_host2": "",
-    "mjpeg_port1": 10501,
-    "mjpeg_port2": 10502,
-    "mjpeg_width": 1280,
-    "mjpeg_height": 720,
-    "dev_id": "jetson01",
+    "mjpeg_port1": "10501",
+    "mjpeg_port2": "10502",
+    "mjpeg_width": "1280",
+    "mjpeg_height": "720",
+    "dev_id": "",
+    "rdno": "",
     "spaceno": "000",
     "mac": "",
     "device_key": "",
-    "token": "ANI6+wXQBUVDUFFVdzBBR1VQRkMuBApERW4nS1FTRkgvKTEAGTwQeEtZREJUdkdVV3tGCWl3akZOXFg4G3Q2Ymk7cUFYWygGCBQqDgZVSUUzPW5LaUUxRlUpImJcRkFkMRscJyQ6RlhxRTxODAtKNTE3MGRlRDFdVGZqVDc1fScXNH5IX1AlCzkjKRdRNUVbXGYMLz0/JigQBg5gVmNiW3oxeUtxCFU6I1J5WwsyXiEyGi1SQz0+QxgpJzIqXyxXV35eaDBSeU59Sn4VPgEGP2N6LzoeVls="
+    "token": ""
 }
 
