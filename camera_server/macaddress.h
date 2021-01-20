@@ -107,6 +107,7 @@ void macAddress::getMac(std::string ifrName){
         strcpy(s.ifr_name, ifrName.c_str() );
         char buffer [3];
         unsigned char macStr [18];
+        #if __linux
         if(0 == ioctl(fd, SIOCGIFHWADDR, &s)) {
                 mac_addr[0] = (unsigned char) s.ifr_addr.sa_data[0];
                 mac_addr[1] = (unsigned char) s.ifr_addr.sa_data[1];
@@ -116,6 +117,7 @@ void macAddress::getMac(std::string ifrName){
                 mac_addr[5] = (unsigned char) s.ifr_addr.sa_data[5];
 
                 }
+        #endif
 }
 
 #endif

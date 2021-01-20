@@ -1,3 +1,0 @@
-/home/chimera/Public/redis-plus-plus/build/ormpp/build/CMakeFiles/rebuild_cache.dir
-/home/chimera/Public/redis-plus-plus/build/ormpp/build/CMakeFiles/ormpp.dir
-/home/chimera/Public/redis-plus-plus/build/ormpp/build/CMakeFiles/edit_cache.dir

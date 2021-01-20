@@ -17,17 +17,15 @@
 #include <memory>    // For std::unique_ptr
 #include <unistd.h>
 #include <sys/stat.h>
+#define NO_STD_OPTIONAL
+#include "mysql+++/mysql+++.h"
 
-#define USE_BOOST_ASIO 1
-#include <amy/connector.hpp>
-#include <amy/placeholders.hpp>
-#include "options.h"
+#include "yazi-mysql/mysql/Database.h"
+#include "yazi-mysql/mysql/Table.h"
+#include "yazi-mysql/mysql/Row.h"
+using namespace yazi::mysql;
 
-///#define NO_STD_OPTIONAL
-///#include "mysql+++/mysql+++.h"
-
-
-#define ENABLE_ALPR 1
+// #define ENABLE_ALPR 1
 #ifdef ENABLE_ALPR
 
 #if ULTALPR_SDK_OS_ANDROID
@@ -42,7 +40,7 @@ using namespace sw::redis::image_helper;
 using json = nlohmann::json;
 using namespace moodycamel;
 using namespace RickyCorte;
-
+using namespace daotk::mysql;
 
 bool VERBOSE = false;
 bool STREAM_MODE = true;
@@ -54,6 +52,7 @@ std::string redisHost = "localhost";
 std::string redisHost = "bomding.com";
 #endif
 ConfigFile *cfg = NULL;
+connection DBConnection;
 
 int redisPort = 6018;
 int webPort1 = 10501;
@@ -74,7 +73,6 @@ struct cameraParams {
     uint channels;
 };
 
-/*
 struct parking_device {
     string dev_id;
     string mac_address;
@@ -82,14 +80,17 @@ struct parking_device {
     string ipaddr;
     string device_key;
     string token;
+
+    bool operator==(parking_device const& b) const noexcept
+    {
+        return this->dev_id == b.dev_id;
+    }
 };
-REFLECTION(parking_device, dev_id, mac_address, online_status, ipaddr, device_key, token)
-*/
 
 ConcurrentQueue<cv::Mat> frameQueue;
 ConcurrentQueue<PlateInfo> plateQueue;
 ConcurrentQueue<string> uploadQueue;
-
+/*
 void check_error(AMY_SYSTEM_NS::error_code const& ec) {
     if (ec) {
         throw AMY_SYSTEM_NS::system_error(ec);
@@ -102,57 +103,96 @@ void handle_connect(AMY_SYSTEM_NS::error_code const& ec,
     check_error(ec);
     std::cout << "Connected." << std::endl;
 }
+*/
+
+std::string string_format(const std::string fmt_str, ...) {
+    int final_n, n = ((int)fmt_str.size()) * 2; /* Reserve two times as much as the length of the fmt_str */
+    std::unique_ptr<char[]> formatted;
+    va_list ap;
+    while(1) {
+        formatted.reset(new char[n]); /* Wrap the plain char array into the unique_ptr */
+        strcpy(&formatted[0], fmt_str.c_str());
+        va_start(ap, fmt_str);
+        final_n = vsnprintf(&formatted[0], n, fmt_str.c_str(), ap);
+        va_end(ap);
+        if (final_n < 0 || final_n >= n)
+            n += abs(final_n - n + 1);
+        else
+            break;
+    }
+    return std::string(formatted.get());
+}
+
 
 void init() {
     cfg = new ConfigFile("cfg/config.json");
 
-    global_options opts;
-/*
-    opts.host = cfg->Get("db_host");
-    opts.port = 6033;
-    opts.user = cfg->Get("user_name");
-    opts.password = cfg->Get("pwd");
-    opts.schema = cfg->Get("db_name");
-*/
-    AMY_ASIO_NS::io_service io_service;
-    amy::connector connector(io_service);
-    connector.connect(opts.tcp_endpoint(),
-                      opts.auth_info(),
-                      opts.schema,
-                      amy::default_flags);
+    string devID = cfg->Get("dev_id");
+    string macAddress = cfg->Get("mac");
+    string deviceKey = cfg->Get("device_key");
 
-    std::cout << "Connected." << std::endl;
-
-/*
-    connector.async_connect(opts.tcp_endpoint(),
-                            opts.auth_info(),
-                            opts.schema,
-                            amy::default_flags,
-                            std::bind(handle_connect,
-                            	amy::placeholders::error,
-                                std::ref(connector)));
-    try {
-	io_service.run();
-    } catch (AMY_SYSTEM_NS::system_error const& e) {
-        std::cerr << "Error:" << endl;
-    } catch (std::exception const& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
+    Database db;
+    if (db.connect(cfg->Get("db_host"), std::stoi(cfg->Get("db_port")), cfg->Get("user_name"), cfg->Get("pwd"), cfg->Get("db_name")))
+    {
+        std::cout << "ok......" << std::endl;
     }
-  */  
 
-    /*
+    Table table(db);
+
+    // select one record
+    Row row;
+    row.clear();
+    row["mac_address"] = 30;
+    row["device_key"] = "ping";
+    table.from("parking_device").where("dev_id", devID).update(row);
+    // if (row.empty())
+    // {
+    //     std::cout << "query result is empty" << std::endl;
+    // }
+    // else
+    // {
+    //     string mac = row["mac_address"];
+    //     string token = row["token"];
+    //     std::cout << "mac address:" << mac << " token=" << token << std::endl;
+    // }
+
+
     connect_options options;
     options.server = cfg->Get("db_host");
-    options.port = std::stoi(cfg->Get("db_port") );
+    options.port = std::stoi(cfg->Get("db_port"));
     options.username = cfg->Get("user_name");
     options.password = cfg->Get("pwd");
     options.dbname = cfg->Get("db_name");
 
-    if (!dbConnection.open(options) ) {
-	cout << "Connection failed" << endl;
+    if (!DBConnection.open(options) ) {
+	    cout << "Connection failed" << endl;
     } else {
-	cout  << "db connection success" << endl;
+	    cout  << "db connection success" << endl;
+
+        try {
+            // string queryString = string_format("select dev_id, mac_address, device_key, token from parking_device where dev_id = `%s`", devID.c_str());
+            string queryString = string_format("select dev_id, mac_address, device_key, token from `parking_device` WHERE `dev_id`='jetson01' LIMIT 0,1 ");
+            cout << "query string:" << queryString << endl;
+            DBConnection.query( queryString )
+                .each([](string devid, string mac, string key, string token ) {
+                    cout << "mac:" << mac << ",device key:" << key << ",token:" << token << endl;
+                
+                    return true;
+                // string mac_address, device_key, token;
+                // res.fetch(mac_address, device_key, token );
+                // cout << "mac:" << mac_address << ",device key:" << device_key << ",token:" << token << endl;
+            });
+
+            DBConnection.exec("update `parking_device` set `mac_address` = `00:11:22:33:44:55`");
+
+	    } catch (mysql_exception exp) {
+    		cout << "Query #" << " failed with error: " << exp.error_number() << " - " << exp.what() << endl;
+	    } catch (mysqlpp_exception exp) {
+	    	cout << "Query #" << " failed with error: " << exp.what() << endl;
+	    }
+
     }
+    /*
 
     dataBaseConfig config;
     config.character_encoding = "utf8";
@@ -260,6 +300,21 @@ void checkDeviceToken() {
 	    string devID = cfg->Get("dev_id");
 	    string macAddress = cfg->Get("mac");
 	    string deviceKey = cfg->Get("device_key");
+        Database db;
+        if (db.connect(cfg->Get("db_host"), std::stoi(cfg->Get("db_port")), cfg->Get("user_name"), cfg->Get("pwd"), cfg->Get("db_name")))
+        {
+            std::cout << "ok......" << std::endl;
+        }
+
+        Table table(db);
+
+        // select one record
+        Row row;
+        row.clear();
+        row["mac_address"] = macAddress;
+        row["device_key"] = deviceKey;
+        table.from("parking_device").where("dev_id", devID).update(row);
+
 	    /*
 	    try {
 		auto res = dbConnection.query("select dev_id, mac_address, device_key, token from parking_device where dev_id = %s", devID.c_str() );
@@ -344,23 +399,6 @@ void initUltimateEngine() {
 }
 #endif
 
-std::string string_format(const std::string fmt_str, ...) {
-    int final_n, n = ((int)fmt_str.size()) * 2; /* Reserve two times as much as the length of the fmt_str */
-    std::unique_ptr<char[]> formatted;
-    va_list ap;
-    while(1) {
-        formatted.reset(new char[n]); /* Wrap the plain char array into the unique_ptr */
-        strcpy(&formatted[0], fmt_str.c_str());
-        va_start(ap, fmt_str);
-        final_n = vsnprintf(&formatted[0], n, fmt_str.c_str(), ap);
-        va_end(ap);
-        if (final_n < 0 || final_n >= n)
-            n += abs(final_n - n + 1);
-        else
-            break;
-    }
-    return std::string(formatted.get());
-}
 
 void onImagePublished(redisAsyncContext* c, void* data, void* privdata)
 {

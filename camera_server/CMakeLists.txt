@@ -6,6 +6,17 @@ else()
     cmake_minimum_required(VERSION 2.8.0)
 endif()
 
+if (NOT DEFINED CAMERA_SERVER_CXX_STANDARD)
+    set(CAMERA_SERVER_CXX_STANDARD 17)
+endif()
+
+message(STATUS "CAMERA_SERVER_CXX_STANDARD CXX standard is c++${CAMERA_SERVER_CXX_STANDARD}")
+
+if (NOT WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++${CAMERA_SERVER_CXX_STANDARD} -Wc++17-extensions")
+endif()
+
+
 #set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/src/sw/redis++)
 
 #file(GLOB PROJECT_SOURCE_FILES "${PROJECT_SOURCE_DIR}/*.cpp")
@@ -75,10 +86,8 @@ if (NOT MYSQL_FOUND)
     message(FATAL_ERROR "mysql not found.")
 endif()
 
-option(USE_BOOST_ASIO "USE_BOOST_ASIO" ON)
-if(USE_BOOST_ASIO)
-    set(USE_BOOST_ASIO "1")
-endif()
+find_package(sqlpp11 REQUIRED)
+
 
 if (REDIS_PLUS_PLUS_BUILD_STATIC)
     set(REDIS_PLUS_PLUS_LIB redis-plus-plus-static)
@@ -88,30 +97,39 @@ endif()
 
 set(GLOB HEADERS ../src/sw/redis++/image_helper/*.h)	
 
-
 set(CLI_SOURCES
         client.cpp
         MJPEGWriter.cpp
         MJPEGWriter.h
         json.hpp
-	Config.hpp
-	Config.cpp
-	ConfigFile.hpp
-	ConfigFile.cpp
-	Logging.hpp
+        Config.hpp
+        Config.cpp
+        ConfigFile.hpp
+        ConfigFile.cpp
+        Logging.hpp
         concurrentqueue.h
         SSocket.h
         SSocket.cpp
-	options.h
-	options.cpp )
+        yazi-mysql/mysql/Database.cpp
+        yazi-mysql/mysql/Row.cpp
+        yazi-mysql/mysql/Table.cpp
+        yazi-mysql/mysql/Database.h
+        yazi-mysql/mysql/Row.h
+        yazi-mysql/mysql/Table.h
+        yazi-mysql/utility/Logger.cpp
+        yazi-mysql/utility/System.cpp
+        yazi-mysql/utility/Logger.h
+        yazi-mysql/utility/System.h
+        yazi-mysql/utility/Singleton.h
+	)
 
 set(SERV_SOURCES
         RedisCameraServer.cpp
         server.cpp
         RedisCameraServer.h)
 
-add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS})
-target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} ${MYSQL_LIBS} curl pthread boost_system)
+add_executable (redis-camera-client ${CLI_SOURCES} ${HEADERS} ${SQLPP11_INCLUDE_DIR})
+target_link_libraries(redis-camera-client ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS} ${ALPR_LIBS} ${MYSQL_LIBS} ${SQLPP11_LIBS} curl pthread  )
 
 add_executable (redis-camera-server ${SERV_SOURCES} ${HEADERS})
 target_link_libraries(redis-camera-server ${OpenCV_LIBS} ${REDIS_PLUS_PLUS_LIB} ${HIREDIS_LIBS} ${EV_LIBS})
