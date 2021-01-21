@@ -128,6 +128,7 @@ std::string string_format(const std::string fmt_str, ...)
 
 void init()
 {
+    cout << "init engine" << endl;
     cfg = new ConfigFile("cfg/config.json");
 
     string devID = cfg->Get("dev_id");
@@ -588,8 +589,8 @@ void handlePlateJob()
 
 void uploadJob()
 {
-    //SSocket sock = SSocket();
-    string post_url = cfg->Get("post_url");
+    string image_upload_url = cfg->Get("image_upload_url");
+    string image_server = cfg->Get("image_server");
     while (1)
     {
         string filename;
@@ -611,7 +612,7 @@ void uploadJob()
                 form.add("file", filename);
                 form.addFile("file", filename);
                 Request request = RequestBuilder()
-                                      .url(post_url)
+                                      .url(image_upload_url)
                                       .followLocation(true)
                                       .requestBody(&form)
                                       .contentOutput(&contentOutput)
@@ -623,7 +624,8 @@ void uploadJob()
                      << "----------- Content ----------" << endl
                      << contentOutput.str() << endl
                      << flush;
-                string image_url = string_format("%s/%s", post_url.c_str(), filename.c_str());
+		
+                string image_url = string_format("%s/%s", image_server.c_str(), filename.c_str());
                 cout << "image url:" << image_url << endl;
             }
         }
