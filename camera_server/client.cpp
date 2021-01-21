@@ -603,6 +603,7 @@ void uploadJob()
                 /*
                 string command = string_format("curl -X POST http://notice.com.tw:2077/upload -F \"file=@%s\"", filename.c_str());
                 system(command.c_str());
+                cout << "command: " << command << endl;
                 */
                 ostringstream contentOutput;
                 // multipart form, you can upload a file, or key-value
@@ -622,7 +623,6 @@ void uploadJob()
                      << "----------- Content ----------" << endl
                      << contentOutput.str() << endl
                      << flush;
-                cout << "command: " << command << endl;
                 string image_url = string_format("%s/%s", post_url.c_str(), filename.c_str());
                 cout << "image url:" << image_url << endl;
             }
