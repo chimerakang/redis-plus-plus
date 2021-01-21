@@ -114,11 +114,6 @@ set(CLI_SOURCES
         yazi-mysql/mysql/Database.h
         yazi-mysql/mysql/Row.h
         yazi-mysql/mysql/Table.h
-        yazi-mysql/utility/Logger.cpp
-        yazi-mysql/utility/System.cpp
-        yazi-mysql/utility/Logger.h
-        yazi-mysql/utility/System.h
-        yazi-mysql/utility/Singleton.h
 	)
 
 set(SERV_SOURCES

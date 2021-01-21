@@ -7,7 +7,7 @@ else()
 endif()
 
 if (NOT DEFINED REDIS_PLUS_PLUS_CXX_STANDARD)
-    set(REDIS_PLUS_PLUS_CXX_STANDARD 17)
+    set(REDIS_PLUS_PLUS_CXX_STANDARD 11)
 endif()
 
 message(STATUS "The CXX standard is c++${REDIS_PLUS_PLUS_CXX_STANDARD}")
