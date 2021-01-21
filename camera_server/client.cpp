@@ -23,9 +23,8 @@
 #include "yazi-mysql/mysql/Database.h"
 #include "yazi-mysql/mysql/Table.h"
 #include "yazi-mysql/mysql/Row.h"
-using namespace yazi::mysql;
 
-// #define ENABLE_ALPR 1
+#define ENABLE_ALPR 1
 #ifdef ENABLE_ALPR
 
 #if ULTALPR_SDK_OS_ANDROID
@@ -41,6 +40,7 @@ using json = nlohmann::json;
 using namespace moodycamel;
 using namespace RickyCorte;
 using namespace daotk::mysql;
+using namespace yazi::mysql;
 using namespace CXXUrl;
 
 bool VERBOSE = false;
