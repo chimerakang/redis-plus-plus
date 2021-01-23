@@ -1,0 +1,24 @@
+version: '3.3'
+
+services:
+  alpr:
+    image: hatice/alpr_base
+    restart: always
+    ports:
+      - "10501:10501"
+      - "10502:10502"
+      - "10503:10503"
+      - "10504:10504"
+      - "10500:10500"
+    depends_on:
+      - redis
+    volumes:
+      - "${PWD}/build/camera_server/cfg/:/app/redis-plus-plus/build/camera_server/cfg"
+
+  redis:
+    image: redis:alpine
+    container_name: redis-srv
+    ports:
+      - "6018:6379"
+    restart: always
+
