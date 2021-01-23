@@ -120,7 +120,7 @@ if (REDIS_PLUS_PLUS_BUILD_SHARED)
     set_target_properties(${SHARED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" ON)
+option(REDIS_PLUS_PLUS_BUILD_TEST "Build tests for redis++" OFF)
 
 if (REDIS_PLUS_PLUS_BUILD_TEST)
     add_subdirectory(test)

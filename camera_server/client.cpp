@@ -591,6 +591,9 @@ void uploadJob()
 {
     string image_upload_url = cfg->Get("image_upload_url");
     string image_server = cfg->Get("image_server");
+    if( image_upload_url.size() < 10 || image_server.size() < 10 ) {
+	cout << "image_upload_url not setting, quit it" << endl;
+    }
     while (1)
     {
         string filename;
@@ -599,13 +602,13 @@ void uploadJob()
             struct stat buffer;
             if (stat(filename.c_str(), &buffer) == 0)
             {
-                usleep(50000);
-                //sock.postUpload("http://notice.com.tw:2077/upload", filename, "file");
+                usleep(150000);
                 /*
-                string command = string_format("curl -X POST http://notice.com.tw:2077/upload -F \"file=@%s\"", filename.c_str());
+                string command = string_format("curl -X POST %s -F \"file=@%s\"", image_upload_url.c_str(), filename.c_str());
                 system(command.c_str());
                 cout << "command: " << command << endl;
-                */
+		*/
+                
                 ostringstream contentOutput;
                 // multipart form, you can upload a file, or key-value
                 MultipartForm form;

@@ -31,16 +31,7 @@ if (NOT OPENCV_FOUND)
     message(FATAL_ERROR, "OpenCV not found.")
 endif()
 
-# hiredis dependency
-# libhiredis dependency
-# find_path(HIREDIS_HEADER hiredis)
-# find_library(HIREDIS_LIB hiredis)
-
-#INCLUDE("${CMAKE_CURRENT_LIST_DIR}/../cmake/hiredis.cmake")
-#target_include_directories(${PROJECT_NAME} PUBLIC ${HIREDIS_INCLUDE_DIRS})
-#target_link_libraries(${PROJECT_NAME} ${HIREDIS_LIBRARIES})
-
-find_package(hiredis REQUIRED)
+find_package(hiredis REQUIRED EXACT /usr/lib/aarch64-linux-gnu)
 if (NOT HIREDIS_FOUND)
     message(FATAL_ERROR, "hiredis not found.")
 endif()
