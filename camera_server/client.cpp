@@ -548,8 +548,9 @@ void handlePlateJob()
             int width = info.cx2 - info.cx1;
             int height = info.cy2 - info.cy1;
             string carimg_url, plateimg_url;
-            if (width > 0 && height > 0)
+            if (width > 0 && height > 0 && info.cx1 > 0 && info.cx2 > 0 && info.cy1 > 0 && info.cy2 > 0)
             {
+		try {
                 cv::Rect car_region(info.cx1, info.cy1, width, height);
                 cv::Mat carImg = info.frame(car_region);
                 string filename = string_format("car_%s_%f.jpg", info.plate.c_str(), info.car_confidence);
@@ -559,13 +560,17 @@ void handlePlateJob()
                     uploadQueue.enqueue(filename);
                     carimg_url = string_format("%s/%s", image_server.c_str(), filename.c_str());
                 }
+		} catch (exception e) {
+		    cout << "found car crop image exception : " << e.what() << endl;
+		}
             }
 
             // cout << "plate:" << info.plate << ",px1:"<< info.px1 << ",px2:" << info.px2 << ",py1:" << info.py1 << ",py2:" << info.py2 << endl;
             width = info.px2 - info.px1;
             height = info.py2 - info.py1;
-            if (width > 0 && height > 0)
+            if (width > 0 && height > 0 && info.px1 > 0 && info.px2 > 0 && info.py1 > 0 && info.py2 > 0)
             {
+		try {
                 cv::Rect plate_region(info.px1, info.py1, (info.px2 - info.px1), (info.py2 - info.py1));
                 cv::Mat plateImg = info.frame(plate_region);
                 string filename = string_format("plate_%s_%f.jpg", info.plate.c_str(), info.plate_confidence1);
@@ -575,6 +580,9 @@ void handlePlateJob()
                     uploadQueue.enqueue(filename);
                     plateimg_url = string_format("%s/%s", image_server.c_str(), filename.c_str());
                 }
+		} catch ( exception e ) {
+		    cout << "found plate crop image exception: " << e.what() << endl;
+		}
             }
 
             PostInfo postInfo;
@@ -608,7 +616,6 @@ void uploadJob()
                 system(command.c_str());
                 cout << "command: " << command << endl;
 		*/
-                
                 ostringstream contentOutput;
                 // multipart form, you can upload a file, or key-value
                 MultipartForm form;
@@ -627,7 +634,7 @@ void uploadJob()
                      << "----------- Content ----------" << endl
                      << contentOutput.str() << endl
                      << flush;
-		
+
                 string image_url = string_format("%s/%s", image_server.c_str(), filename.c_str());
                 cout << "image url:" << image_url << endl;
             }
@@ -843,6 +850,7 @@ void AlprProcess()
         if (frameQueue1.try_dequeue(frame))
         {
 #ifdef ENABLE_ALPR
+	    try {
             UltAlprSdkResult result = UltAlprSdkEngine::process(
                 ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of RGB-family. https://www.doubango.org/SDKs/anpr/docs/cpp-api.html#_CPPv4N15ultimateAlprSdk22ULTALPR_SDK_IMAGE_TYPEE
                 frame.ptr(),
@@ -903,7 +911,9 @@ void AlprProcess()
                                     int px2 = int(box[4].get<float>());
                                     int py2 = int(box[5].get<float>());
 
+				    cout << "px1:" << px1 << ",px2:" << px2 << ",py1:" << py1 << ",py2:" << py2 << endl;
                                     cv::rectangle(frame, cv::Point(px1, py1), cv::Point(px2, py2), cv::Scalar(255, 255, 0), 2);
+				    cout << "finish retangle" << endl;
                                     info.plate_confidence0 = confidence0;
                                     info.plate_confidence1 = confidence1;
                                     info.px1 = px1;
@@ -919,6 +929,10 @@ void AlprProcess()
                     }
                 }
             }
+            } catch ( exception e ) {
+                cout << "recognition exception : " << e.what() << endl;
+            }
+
 #endif
             web1.write(frame);
         }
@@ -926,6 +940,7 @@ void AlprProcess()
         if (frameQueue2.try_dequeue(frame))
         {
 #ifdef ENABLE_ALPR
+	    try {
             UltAlprSdkResult result = UltAlprSdkEngine::process(
                 ULTALPR_SDK_IMAGE_TYPE_RGB24, // If you're using data from your camera then, the type would be YUV-family instead of R$
                 frame.ptr(),
@@ -984,8 +999,10 @@ void AlprProcess()
                                     int py1 = int(box[1].get<float>());
                                     int px2 = int(box[4].get<float>());
                                     int py2 = int(box[5].get<float>());
+				    cout << "px1:" << px1 << ",px2:" << px2 << ",py1:" << py1 << ",py2:" << py2 << endl;
 
                                     cv::rectangle(frame, cv::Point(px1, py1), cv::Point(px2, py2), cv::Scalar(255, 255, 0), 2);
+				    cout << "finish rectangle web2" << endl;
                                     info.plate_confidence0 = confidence0;
                                     info.plate_confidence1 = confidence1;
                                     info.px1 = px1;
@@ -1001,6 +1018,10 @@ void AlprProcess()
                     }
                 }
             }
+            } catch ( exception e ) {
+                cout << "recognition exception : " << e.what() << endl;
+            }
+
 #endif
             web2.write(frame);
         }

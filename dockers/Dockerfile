@@ -96,6 +96,7 @@ RUN cmake .. && make
 
 WORKDIR /app/redis-plus-plus/build/camera_server
 RUN mkdir -p cfg && cp -rf /app/ultimateALPR-SDK/assets .
+RUN cp /app/ultimateALPR-SDK/binaries/jetson_tftrt/aarch64/lib* .
 
 # export setting
 EXPOSE 10500
@@ -104,5 +105,5 @@ EXPOSE 10502
 EXPOSE 10503
 EXPOSE 10504
 
-#CMD [ "bash" ]
-CMD ["./redis-camera-client"]
+CMD [ "bash" ]
+#CMD ["./redis-camera-client"]
