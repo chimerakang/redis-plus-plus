@@ -31,7 +31,7 @@ if (NOT OPENCV_FOUND)
     message(FATAL_ERROR, "OpenCV not found.")
 endif()
 
-find_package(hiredis REQUIRED EXACT /usr/lib/aarch64-linux-gnu)
+find_package(hiredis REQUIRED )
 if (NOT HIREDIS_FOUND)
     message(FATAL_ERROR, "hiredis not found.")
 endif()
